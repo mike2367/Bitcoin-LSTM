@@ -2,10 +2,10 @@
 
 personal pytorch/sklearn training project
 
-Content Including:
-matplotlib/seaborn plotting
-sklearn Kmeans algorithm
-ML model selection/evaluation
-pytorch LSTM RNN
+# Content Including:</br>
+matplotlib/seaborn plotting </br>
+sklearn Kmeans algorithm</br>
+ML model selection/evaluation</br>
+pytorch LSTM RNN</br>
 
 # Notice that some of the notes and plots are written in Chinese
