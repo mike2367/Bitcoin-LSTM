@@ -1,7 +1,8 @@
-from Bitcoin_data import df
 import matplotlib.pyplot as mp
 import numpy as np
-from sklearn.preprocessing import MinMaxScaler
+from lstm_model import train_x, train_y, train_size
+from lstm_model import LSTM_regression
+from lstm_model import X,scaled_close_data, STEP_LENGTH
 import time
 from sklearn.metrics import r2_score
 mp.rcParams['font.family'] = 'SimHei'
@@ -13,50 +14,11 @@ from torch import nn
 # 安排GPU
 device = torch.cuda.device('cuda')
 
-closing_data = df[['Close']].values
-scaler = MinMaxScaler(feature_range=(0,1))
-scaled_close_data = scaler.fit_transform(closing_data)
 
-# 设定训练与窗口长度
-def create_dataset(data, time_step=5):
-    X, Y = [], []
-    for i in range(len(data) - time_step - 1):
-        X.append(data[i:(i+time_step)])
-        Y.append(data[i+time_step])
-    return np.array(X), np.array(Y)
-
-
-X, Y = create_dataset(scaled_close_data)
-
-# 70%作为训练集
-train_size = int(len(X) * 0.7)
-# 调整至RNN输入格式
-train_x = X[:train_size].reshape(-1, 1,5)
-train_y = Y[:train_size].reshape(-1, 1, 1)
-# float将float64转换为float32,避免RTE
-train_x = torch.from_numpy(train_x).float()
-train_y = torch.from_numpy(train_y).float()
-
-
-# 2层隐藏层LSTM
-class LSTM_regression(nn.Module):
-    def __init__(self, input_size, hidden_size, output_size=1, num_layers=2):
-        super().__init__()
-        self.lstm = nn.LSTM(input_size, hidden_size, num_layers)
-        # 全连接层输出
-        self.fc = nn.Linear(hidden_size, output_size)
-        
-    def forward(self, _x):
-        x, _ = self.lstm(_x)
-        s, b, h = x.shape
-        x = x.view(s * b, h)
-        x = self.fc(x)
-        x = x.view(s, b, -1)
-        return x
 
 if __name__ == '__main__':
     t0 = time.time()
-    model = LSTM_regression(5, 8, output_size=1, num_layers=2)
+    model = LSTM_regression(STEP_LENGTH, 8, output_size=1, num_layers=2)
     model=model.cuda()
     # 计算总参数量
     model_total = sum([param.nelement() for param in model.parameters()])
@@ -68,7 +30,7 @@ if __name__ == '__main__':
     loss_function = nn.MSELoss()
     loss_function = loss_function.cuda()
     # betas 为Adam算法参数，weight_decay防止过拟合，一般取1e-4
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.01, betas=(0.9, 0.999),
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.05, betas=(0.9, 0.99),
                                  eps=1e-08, weight_decay=0)
 
     for i in range(200):
@@ -106,12 +68,12 @@ if __name__ == '__main__':
     # 加载参数
     model.load_state_dict(torch.load('../resource/train_result/LSTM_param.pkl'))
     # 全量测试
-    test_X = X.reshape(-1, 1, 5)
+    test_X = X.reshape(-1, 1, STEP_LENGTH)
     test_X = torch.from_numpy(test_X).float().cuda()
     # cuda张量需要先转为cpu pytorch张量再变为numpy
     pred = model(test_X).view(-1).data.cpu().numpy()
     # 补0使长度相同
-    pred = np.concatenate((np.zeros(5), pred))
+    pred = np.concatenate((np.zeros(STEP_LENGTH), pred))
 
     mp.figure()
     mp.plot(pred, 'orange', label='prediction')
